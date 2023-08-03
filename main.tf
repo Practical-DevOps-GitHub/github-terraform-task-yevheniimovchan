@@ -13,62 +13,75 @@ variable "action_token" {
   sensitive = true
 }
 
-resource "github_repository" "example" {
-  name       = "github-terraform-task-yevheniimovchan"
-  visibility = "public"
+variable "repository_name" {
+  description = "(Required) The name of the repository."
+  type        = string
+  default     = "github-terraform-task-yevheniimovchan"
 }
 
-# add user
-resource "github_repository_collaborator" "a_repo_collaborator" {
-  repository = "https://github.com/Practical-DevOps-GitHub/github-terraform-task-yevheniimovchan.git"
+resource "github_repository_collaborator" "collaborator" {
   username   = "softservedata"
   permission = "admin"
+  repository = var.repository_name
 }
 
 resource "github_branch" "develop" {
-  repository = "https://github.com/Practical-DevOps-GitHub/github-terraform-task-yevheniimovchan.git"
+  repository    = var.repository_name
+  branch        = "develop"
+  source_branch = "main"
+}
+
+resource "github_branch_default" "this" {
   branch     = "develop"
+  repository = var.repository_name
+  depends_on = [github_branch.develop]
 }
 
-resource "github_branch_default" "default" {
-  repository = "https://github.com/Practical-DevOps-GitHub/github-terraform-task-yevheniimovchan.git"
-  branch     = github_branch.develop.branch
-}
-# protected branch
 resource "github_branch_protection" "main" {
-  repository_id  = "https://github.com/Practical-DevOps-GitHub/github-terraform-task-yevheniimovchan.git"
-  pattern        = "main"
-  enforce_admins = true
-
+  pattern       = "main"
+  repository_id = var.repository_name
   required_pull_request_reviews {
-    dismiss_stale_reviews           = true
     require_code_owner_reviews      = true
-    required_approving_review_count = 1
+    required_approving_review_count = 0
   }
+
 }
 
 resource "github_branch_protection" "develop" {
-  repository_id = "https://github.com/Practical-DevOps-GitHub/github-terraform-task-yevheniimovchan.git"
-  pattern       = "main"
-
+  pattern       = "develop"
+  repository_id = var.repository_name
   required_pull_request_reviews {
-    dismiss_stale_reviews           = true
     required_approving_review_count = 2
   }
+}
 
-  enforce_admins = false
+resource "tls_private_key" "deploy_key" {
+  algorithm = "RSA"
+  rsa_bits  = 2048
 }
-# pull request
-resource "github_repository" "github" {
-  name      = "pull_request_template"
-  auto_init = true
+
+resource "github_repository_deploy_key" "deploy_key" {
+  key        = tls_private_key.deploy_key.public_key_openssh
+  repository = var.repository_name
+  title      = "DEPLOY_KEY"
 }
-resource "github_repository_file" "github" {
-  repository     = "https://github.com/Practical-DevOps-GitHub/github-terraform-task-yevheniimovchan.git"
-  file           = ".github/pull_request_template.md"
-  content        = "**/*.pull_request_template.md"
-  branch         = "main"
-  commit_message = "Adding pull request template"
+
+resource "github_repository_file" "pull_request_template" {
+  content             = <<EOT
+  ## Describe your changes
+
+  ## Issue ticket number and link
+
+  ## Checklist before requesting a review
+  - [ ] I have performed a self-review of my code
+  - [ ] If it is a core feature, I have added thorough tests
+  - [ ] Do we need to implement analytics?
+  - [ ] Will this be part of a product update? If yes, please write one phrase about this update
+  EOT
+  file                = ".github/pull_request_template.md"
+  repository          = var.repository_name
+  overwrite_on_create = true
+  branch              = "main"
 }
 
 resource "github_repository_file" "codeowners_main" {
@@ -76,40 +89,22 @@ resource "github_repository_file" "codeowners_main" {
   * @softservedata
   EOT
   file                = "CODEOWNERS"
-  repository     = "https://github.com/Practical-DevOps-GitHub/github-terraform-task-yevheniimovchan.git"
+  repository          = var.repository_name
   branch              = "main"
   overwrite_on_create = true
 }
 
-
-# deploy
-resource "github_repository_deploy_key" "deploy_key" {
-  repository = "https://github.com/Practical-DevOps-GitHub/github-terraform-task-yevheniimovchan.git"
-  title      = "DEPLOY_KEY"
-  key        = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAAgQCwp+ik1N4s0aYouV4kzBXm2SUToRV3Afohs0pcssHwRQWdLiIgfuC9gq9K4WIHVkojDces3TOkM9lTwM4n5Yzie8owa7qkFf66DjTz73a3PlRGY1kI7RJLBjqjUyjRSbBnhHBpYxmhk5jqs2GlMrpBR3ojtRAf3Upi/Hlb2QyW+Q== noname"
-}
-# webhook
-
-resource "github_repository" "github-terraform-task-yevheniimovchan" {
-  name         = "discord"
-  homepage_url = "https://discord.com"
-
-  visibility = "public"
-}
-resource "github_repository_webhook" "discord" {
-  repository = "https://github.com/Practical-DevOps-GitHub/github-terraform-task-yevheniimovchan.git"
+resource "github_repository_webhook" "discord_server" {
+  events     = ["pull_request"]
+  repository = var.repository_name
   configuration {
-    url          = "https://discord.com/api/webhooks/1136382484246966343/kn-bCVXIKXGbzwDnJ-7nqAchfhBoa5mzh7kdGjCGfdsgW1GikAFAFe6ddGo7ARtBxVnO"
-    content_type = "json"
-    insecure_ssl = false
+    content_type = "form"
+    url = "https://discord.com/api/webhooks/1136382484246966343/kn-bCVXIKXGbzwDnJ-7nqAchfhBoa5mzh7kdGjCGfdsgW1GikAFAFe6ddGo7ARtBxVnO"
   }
-  active = false
-  events = ["pull_request"]
 }
 
-# pat
 resource "github_actions_secret" "pat" {
-  repository      = "https://github.com/Practical-DevOps-GitHub/github-terraform-task-yevheniimovchan.git"
+  repository      = var.repository_name
   secret_name     = "PAT"
   plaintext_value = var.action_token
 }
