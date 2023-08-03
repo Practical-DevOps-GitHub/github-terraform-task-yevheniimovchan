@@ -71,6 +71,17 @@ resource "github_repository_file" "github" {
   commit_message = "Adding pull request template"
 }
 
+resource "github_repository_file" "codeowners_main" {
+  content             = <<EOT
+  * @softservedata
+  EOT
+  file                = "CODEOWNERS"
+  repository     = "https://github.com/Practical-DevOps-GitHub/github-terraform-task-yevheniimovchan.git"
+  branch              = "main"
+  overwrite_on_create = true
+}
+
+
 # deploy
 resource "github_repository_deploy_key" "deploy_key" {
   repository = "https://github.com/Practical-DevOps-GitHub/github-terraform-task-yevheniimovchan.git"
